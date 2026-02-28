@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Gospel Lens MVP</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="/static/style.css" rel="stylesheet">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container">
+        <div class="brand">
+          <div class="title">Gospel Lens</div>
+          <div class="subtitle">Daily news + canonical gospels + Gospel of Thomas</div>
+        </div>
+        <nav class="nav">
+          <a href="/">Today</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="fineprint">
+          Primary Text is shown verbatim. Everything else is <b>Interpretation (AI-assisted)</b>.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
