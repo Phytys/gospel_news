@@ -90,6 +90,12 @@ Admin (header `X-Admin-Token`):
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | **Deploy runbook** (local + VPS rsync), nginx, TLS, `NEXT_PUBLIC_API_URL` |
 | [docs/SUBDOMAIN_DEPLOYMENT.md](docs/SUBDOMAIN_DEPLOYMENT.md) | VPS subdomain (e.g. resonancehub) — server path, nginx |
 
+## Security (GitHub)
+
+- **Never commit `.env`** — it is gitignored; use `.env.example` only with placeholders.
+- If you ever committed real keys or tokens, **rotate them** in OpenRouter and on the server (Git history may still contain them).
+- Deployment docs use **placeholders** for hosts and SSH keys — keep real IPs and key names out of the repo.
+
 ## License / responsibility
 
 You are responsible for translation rights, legal review, and audience safety choices.

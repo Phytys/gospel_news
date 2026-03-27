@@ -2,18 +2,20 @@
 
 > **Repo layout:** Deploy from the repository root using `docker-compose.yml` (services: `db`, `api`, `worker`, `web`). Code lives under `apps/api`, `apps/web`, `apps/worker`. Set `POSTGRES_DB` / `DATABASE_URL` in `.env` so they agree (see `.env.example`).
 
-**Purpose:** Deploy Gospel Resonance (FastAPI + Postgres + worker + Next.js) as a subdomain, e.g. `gospellens.resonancehub.app`, on the shared VPS.
+**Purpose:** Deploy Gospel Resonance (FastAPI + Postgres + worker + Next.js) as a subdomain on your VPS.
 
 **Difference from static apps:** This is a **full-stack app** (Docker, Postgres, API + Next.js). It does not use the `rsync dist/` pattern alone. Compose runs the stack; **nginx** terminates TLS and splits traffic: **`/` → web (3000)**, **`/api/` → API (8000)**. Details: **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
+Use **placeholders** below — do not commit real SSH hostnames, keys, or `.env` values.
+
 ---
 
-## 1. Server Access (from main deployment guide)
+## 1. Server access
 
-| Item | Value |
-|------|-------|
-| **VPS IP** | `46.62.247.144` |
-| **SSH** | `ssh -i ~/.ssh/murp_hetzner root@46.62.247.144` |
+| Item | Example |
+|------|---------|
+| **VPS public IP** | Your DNS A record target (e.g. `203.0.113.10` — replace with your real IP) |
+| **SSH** | `ssh -i ~/.ssh/id_ed25519 root@YOUR_VPS_IP` (use your key path) |
 
 ---
 
@@ -30,17 +32,19 @@
 ### 3.1 Clone the Repo on the Server
 
 ```bash
-ssh -i ~/.ssh/murp_hetzner root@46.62.247.144 "sudo mkdir -p /opt/gospellens && sudo chown \$USER:\$USER /opt/gospellens"
-# From your machine, clone (or rsync) the repo:
+export VPS_IP=YOUR_VPS_IP
+export SSH_KEY=~/.ssh/id_ed25519
+ssh -i "$SSH_KEY" "root@${VPS_IP}" "sudo mkdir -p /opt/gospellens && sudo chown \$USER:\$USER /opt/gospellens"
+# From your machine, rsync (excludes `.env`):
 rsync -avz --exclude='.git' --exclude='venv' --exclude='.venv' --exclude='.env' \
-  -e "ssh -i ~/.ssh/murp_hetzner" \
-  ./ root@46.62.247.144:/opt/gospellens/
+  -e "ssh -i $SSH_KEY" \
+  ./ "root@${VPS_IP}:/opt/gospellens/"
 ```
 
-Or clone via git:
+Or clone via git on the server:
 
 ```bash
-ssh -i ~/.ssh/murp_hetzner root@46.62.247.144
+ssh -i ~/.ssh/id_ed25519 "root@${VPS_IP}"
 cd /opt
 git clone <your-repo-url> gospellens
 cd gospellens
@@ -49,7 +53,7 @@ cd gospellens
 ### 3.2 Create `.env` on the Server
 
 ```bash
-ssh -i ~/.ssh/murp_hetzner root@46.62.247.144
+ssh -i ~/.ssh/id_ed25519 "root@${VPS_IP}"
 cd /opt/gospellens
 cp .env.example .env
 nano .env  # or vim
@@ -57,10 +61,10 @@ nano .env  # or vim
 
 Edit `.env` with:
 
-- `OPENROUTER_API_KEY` — your real key
+- `OPENROUTER_API_KEY` — your real key (never commit)
 - `POSTGRES_PASSWORD` — strong, unique password
 - `ADMIN_TOKEN` — random token for admin endpoints
-- `APP_BASE_URL` — `https://gospellens.resonancehub.app` (or your subdomain)
+- `APP_BASE_URL` — your public site URL
 - `DATABASE_URL` — must match `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` and use `db:5432` (Docker hostname)
 - For same-origin browser → API: `NEXT_PUBLIC_API_URL=` empty or full site URL — see [DEPLOYMENT.md](DEPLOYMENT.md)
 
@@ -91,18 +95,17 @@ docker compose exec api python -c "import asyncio; from app.services.umap_rebuil
 **Important:** The UI is **Next.js on port 3000**; the API is **FastAPI on port 8000**. Proxy **`/api/`** to the API and **`/`** to the web app (same pattern as [DEPLOYMENT.md](DEPLOYMENT.md)).
 
 ```bash
-ssh -i ~/.ssh/murp_hetzner root@46.62.247.144
-sudo nano /etc/nginx/sites-available/murp
+ssh -i ~/.ssh/id_ed25519 "root@${VPS_IP}"
+sudo nano /etc/nginx/sites-available/your-site
 ```
 
-Example `server` block for `gospellens.resonancehub.app`:
+Example `server` block (replace `YOUR_DOMAIN` and ports if you remapped Compose):
 
 ```nginx
-# Gospel Resonance: gospellens.resonancehub.app
 server {
     listen 80;
     listen [::]:80;
-    server_name gospellens.resonancehub.app;
+    server_name YOUR_DOMAIN;
 
     location /api/ {
         proxy_pass http://127.0.0.1:8000/api/;
@@ -124,21 +127,16 @@ server {
 }
 ```
 
-If you mapped the API to another host port (e.g. `8001:8000`), use that port in `proxy_pass` for `/api/`.
+If you mapped the API to another host port (e.g. `8010:8000`), use that port in `proxy_pass` for `/api/`.
 
 ### 3.7 DNS
 
-Add an **A record**:
-
-- **Name:** `gospellens`
-- **Type:** A
-- **Value:** `46.62.247.144`
-- **TTL:** 300
+Add an **A record** pointing your subdomain to your **VPS public IPv4 address**.
 
 ### 3.8 TLS
 
 ```bash
-sudo certbot --nginx -d gospellens.resonancehub.app
+sudo certbot --nginx -d YOUR_DOMAIN
 ```
 
 ### 3.9 Reload Nginx
@@ -158,9 +156,9 @@ sudo systemctl reload nginx
 | 2. Create `.env` | `.env.example` → `.env`, edit secrets + `DATABASE_URL` |
 | 3. Start stack | `docker compose up -d --build` |
 | 4. Bootstrap | [README.md](../README.md): `ingest_pipeline` → `run_rebuild_umap` → `generate_daily_for_date` |
-| 5. Nginx | `/api/` → `127.0.0.1:8000`, `/` → `127.0.0.1:3000` (adjust if you changed Compose ports) |
-| 6. DNS | A record `gospellens` → server IP |
-| 7. TLS | `sudo certbot --nginx -d gospellens.resonancehub.app` |
+| 5. Nginx | `/api/` → API port on localhost, `/` → web on localhost |
+| 6. DNS | A record → server IP |
+| 7. TLS | `sudo certbot --nginx -d YOUR_DOMAIN` |
 | 8. Reload | `sudo nginx -t && sudo systemctl reload nginx` |
 
 ---
@@ -187,9 +185,8 @@ sudo systemctl reload nginx
 
 **Gospel Resonance subdomain**
 
-- **Server:** `46.62.247.144` (example; confirm in your DNS)
-- **SSH:** `ssh -i ~/.ssh/murp_hetzner root@46.62.247.144`
-- **App path:** `/opt/gospellens`
+- **Server:** your VPS (IP from DNS)
+- **SSH:** your user + key; `App path:` `/opt/gospellens` (or your choice)
 - **Stack:** Docker Compose — `db`, `api`, `worker`, `web`
 - **Nginx:** `https://…/api/*` → API on localhost; `https://…/` → Next.js on localhost
 - **Full guide:** [DEPLOYMENT.md](DEPLOYMENT.md) and this file

@@ -16,7 +16,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-VPS_HOST="${VPS_HOST:?Set VPS_HOST, e.g. root@46.62.247.144}"
+VPS_HOST="${VPS_HOST:?Set VPS_HOST, e.g. root@203.0.113.10}"
 VPS_PATH="${VPS_PATH:?Set VPS_PATH, e.g. /opt/gospellens}"
 SSH_IDENTITY="${SSH_IDENTITY:-$HOME/.ssh/id_rsa}"
 # Options only — do not prefix with `ssh` here (see remote `ssh` below).
