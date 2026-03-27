@@ -1,0 +1,4 @@
+# Reference: use repository root `docker-compose.yml` for local development.
+# This file documents the same service layout for ops.
+
+# services: db, api, worker, web — see ../docker-compose.yml
