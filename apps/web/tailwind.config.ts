@@ -5,7 +5,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        serif: ["Georgia", "Cambria", "Times New Roman", "serif"],
+        serif: ["'Cormorant Garamond'", "Georgia", "Cambria", "Times New Roman", "serif"],
         sans: ["system-ui", "Segoe UI", "sans-serif"],
       },
       colors: {

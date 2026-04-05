@@ -29,6 +29,7 @@ async def list_map_points(session: AsyncSession, tradition: Optional[str] = None
                 "x": float(mp.x),
                 "y": float(mp.y),
                 "tradition": st.tradition,
+                "book": st.book,
                 "ref_label": st.ref_label,
                 "chunk_type": st.chunk_type,
                 "cluster_id": mp.cluster_id,

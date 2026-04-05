@@ -3,23 +3,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DailyReading } from "@/components/DailyReading";
+import { AskResult } from "@/components/AskResult";
 import { MapExplorer } from "@/components/MapExplorer";
 import { getDaily, getDailyArchive, getMap, postAsk } from "@/lib/api";
 
-const CHIPS = ["anxiety", "peace", "forgiveness", "conflict", "loneliness", "discernment", "wholeness", "distraction"];
+const MAX_CHARS = 4000;
 
 const TABS = [
   { id: "ask" as const, label: "Ask" },
   { id: "daily" as const, label: "Daily" },
-  { id: "archive" as const, label: "Past days" },
-  { id: "map" as const, label: "Map / Explore" },
-  { id: "saved" as const, label: "Saved" },
+  { id: "archive" as const, label: "Archive" },
+  { id: "map" as const, label: "Map" },
 ];
 
 export default function Home() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("ask");
-  /** `null` = today’s daily on the server */
   const [dailyDate, setDailyDate] = useState<string | null>(null);
   const [input, setInput] = useState("");
 
@@ -50,21 +49,24 @@ export default function Home() {
     mutationFn: () => postAsk(input),
   });
 
+  const charsLeft = MAX_CHARS - input.length;
+  const overLimit = charsLeft < 0;
+
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
-      <header className="mb-10 border-b border-ink/10 pb-6">
-        <h1 className="font-serif text-3xl tracking-tight text-ink">Gospel Resonance</h1>
+    <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
+      <header className="mb-8 sm:mb-10 border-b border-ink/10 pb-6">
+        <h1 className="font-serif text-2xl sm:text-3xl tracking-tight text-ink">Gospel Resonance</h1>
         <p className="text-muted mt-2 text-sm leading-relaxed">
           Bring your inner life to the words of Jesus — canonical Gospels and the Gospel of Thomas (noncanonical).
           All generated commentary is labeled.
         </p>
-        <nav className="flex flex-wrap gap-x-6 gap-y-2 mt-6 text-sm">
+        <nav className="flex gap-x-6 mt-6 text-sm overflow-x-auto">
           {TABS.map(({ id, label }) => (
             <button
               key={id}
               type="button"
               onClick={() => goToTab(id)}
-              className={`border-b-2 pb-1 transition-colors ${
+              className={`border-b-2 pb-1 transition-colors whitespace-nowrap ${
                 tab === id ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"
               }`}
             >
@@ -76,95 +78,46 @@ export default function Home() {
 
       {tab === "ask" && (
         <section className="space-y-6">
+          <p className="text-sm text-muted leading-relaxed">
+            Write anything — a single word, a question, a journal entry, a fear. The app finds Gospel passages and a
+            Thomas saying that resonate with what you wrote, then reflects on them together.
+          </p>
+
           <label className="block">
-            <span className="text-sm text-muted">Your words</span>
             <textarea
-              className="mt-2 w-full min-h-[160px] rounded border border-ink/15 bg-white/80 p-4 text-ink placeholder:text-muted focus:border-accent focus:outline-none"
-              placeholder="A question, journal fragment, fear, or situation…"
+              className="w-full min-h-[140px] rounded border border-ink/15 bg-white/80 p-4 text-ink placeholder:text-muted/70 focus:border-accent focus:outline-none leading-relaxed"
+              placeholder={`Try a single word like "peace" or "anger"\nor a longer thought like "I keep putting off a hard conversation"\nor even a paragraph from your journal`}
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              maxLength={MAX_CHARS + 200}
             />
+            <span className={`block text-right text-xs mt-1 ${overLimit ? "text-red-700" : "text-muted/60"}`}>
+              {overLimit
+                ? `${Math.abs(charsLeft)} over limit`
+                : charsLeft <= 400
+                  ? `${charsLeft} left`
+                  : ""}
+            </span>
           </label>
-          <div className="flex flex-wrap gap-2">
-            {CHIPS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className="rounded-full border border-ink/10 px-3 py-1 text-xs text-muted hover:border-accent hover:text-ink"
-                onClick={() => setInput((prev) => (prev ? prev + " " : "") + c)}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
+
           <button
             type="button"
-            disabled={!input.trim() || askM.isPending}
+            disabled={!input.trim() || overLimit || askM.isPending}
             onClick={() => askM.mutate()}
-            className="rounded bg-accent px-5 py-2 text-sm text-paper disabled:opacity-40"
+            className="rounded bg-accent px-6 py-2.5 sm:py-2 text-sm text-paper disabled:opacity-40 w-full sm:w-auto"
           >
             {askM.isPending ? "Listening…" : "Resonate"}
           </button>
 
           {askM.isError && (
-            <pre className="text-sm text-red-800 whitespace-pre-wrap">{String(askM.error)}</pre>
+            <p className="text-sm text-red-800 leading-relaxed">
+              {String(askM.error).includes("429")
+                ? "Please wait a moment before trying again."
+                : `Something went wrong: ${askM.error instanceof Error ? askM.error.message : String(askM.error)}`}
+            </p>
           )}
 
-          {askM.data && (
-            <article className="space-y-8 border-t border-ink/10 pt-8 mt-8">
-              {askM.data.canonical?.map((c: { id: string; ref_label: string; primary_text: string }, i: number) => (
-                <div key={c.id}>
-                  <h3 className="text-xs uppercase tracking-widest text-muted">Primary Text — Canonical Gospel · #{i + 1}</h3>
-                  <p className="font-serif text-lg mt-2 leading-relaxed">{c.primary_text}</p>
-                  <p className="text-xs text-muted mt-1">{c.ref_label}</p>
-                </div>
-              ))}
-              {askM.data.thomas && (
-                <div>
-                  <h3 className="text-xs uppercase tracking-widest text-muted">
-                    Primary Text — Gospel of Thomas (noncanonical)
-                  </h3>
-                  <p className="font-serif text-lg mt-2 leading-relaxed">{askM.data.thomas.primary_text}</p>
-                  <p className="text-xs text-muted mt-1">{askM.data.thomas.ref_label}</p>
-                </div>
-              )}
-              <details className="group rounded border border-ink/10 bg-white/40 p-4">
-                <summary className="cursor-pointer text-sm font-medium text-ink">Explain (AI-assisted)</summary>
-                <div className="mt-4 space-y-4 text-sm">
-                  <div>
-                    <h4 className="text-xs uppercase text-muted">Plain reading</h4>
-                    <p className="mt-1 leading-relaxed">{askM.data.plain_reading_ai_assisted}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-xs uppercase text-muted">Deeper reading</h4>
-                    <p className="mt-1 leading-relaxed">{askM.data.deeper_reading_ai_assisted}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-xs uppercase text-muted">Why this matched</h4>
-                    <p className="mt-1 leading-relaxed">{askM.data.why_matched_ai_assisted}</p>
-                  </div>
-                  {askM.data.tension_ai_assisted && (
-                    <div>
-                      <h4 className="text-xs uppercase text-muted">Tension / Caveat</h4>
-                      <p className="mt-1 leading-relaxed">{askM.data.tension_ai_assisted}</p>
-                    </div>
-                  )}
-                </div>
-              </details>
-              <div>
-                <h3 className="text-xs uppercase tracking-widest text-muted">Interpretation (AI-assisted)</h3>
-                <p className="mt-2 leading-relaxed">{askM.data.interpretation_ai_assisted}</p>
-              </div>
-              <div>
-                <h3 className="text-xs uppercase tracking-widest text-muted">Reflection Questions (AI-assisted)</h3>
-                <ul className="mt-2 list-disc pl-5 space-y-1">
-                  {askM.data.reflection_questions_ai_assisted?.map((q: string) => (
-                    <li key={q}>{q}</li>
-                  ))}
-                </ul>
-              </div>
-            </article>
-          )}
+          {askM.data && <AskResult data={askM.data} />}
         </section>
       )}
 
@@ -202,20 +155,12 @@ export default function Home() {
           {!dailyQ.isLoading && !dailyQ.isError && dailyQ.data === null && (
             <div className="space-y-3 text-muted leading-relaxed text-sm">
               <p>
-                No daily for {dailyDate ? "this date" : "today"} yet. The app creates one automatically after the API and
-                worker start (and after scripture is ingested once).{" "}
-                <strong className="text-ink font-normal">Rebuild-map is only for the Map tab,</strong> not required here.
-              </p>
-              <p>
-                If this is a new server, run <code className="text-ink/90">ingest_pipeline</code> once (README), then
-                wait a minute or use{" "}
-                <code className="text-ink/90">POST /api/v1/admin/generate-daily</code> with your admin token.
+                No daily for {dailyDate ? "this date" : "today"} yet. The app creates one automatically after the API
+                and worker start (and after scripture is ingested once).
               </p>
               <button
                 type="button"
-                onClick={() =>
-                  queryClient.invalidateQueries({ queryKey: ["daily", dailyDate ?? "today"] })
-                }
+                onClick={() => queryClient.invalidateQueries({ queryKey: ["daily", dailyDate ?? "today"] })}
                 className="rounded border border-ink/20 px-3 py-1.5 text-xs text-ink hover:bg-white/60"
               >
                 Check again
@@ -265,10 +210,8 @@ export default function Home() {
       {tab === "map" && (
         <section className="space-y-4">
           <p className="text-muted text-sm leading-relaxed">
-            Each dot is a passage or saying. Position comes from the same embedding model used elsewhere: nearby dots
-            are closer in meaning (UMAP of vectors). Dot color shows a layout region (K-means on those coordinates—purely
-            from the data, not hand-labeled themes). Thomas sayings are slightly larger with a stronger outline; Gospel
-            passages are smaller.
+            Each dot is a passage or saying. Nearby dots are closer in meaning. Color is by book — use the legend to
+            filter. Tap or click any dot to read the passage.
           </p>
           {mapQ.isLoading && <p className="text-muted">Loading…</p>}
           {mapQ.isError && (
@@ -279,13 +222,6 @@ export default function Home() {
           {mapQ.data && <MapExplorer points={mapQ.data.points || []} />}
         </section>
       )}
-
-      {tab === "saved" && (
-        <section>
-          <p className="text-muted text-sm">Saved sessions and notes require account setup (MVP placeholder).</p>
-        </section>
-      )}
     </div>
   );
 }
-

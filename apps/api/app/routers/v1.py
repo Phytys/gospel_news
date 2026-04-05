@@ -4,7 +4,7 @@ import uuid
 from datetime import date
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from ..services.ask_service import run_ask
 from ..services.daily_service import generate_daily_for_date, get_daily, list_published_daily_summaries
 from ..services.map_service import get_node, list_map_points, map_query_point
 from ..settings import settings
+from ..rate_limit import ask_limiter
 from ..text_sanitize import sanitize_source_display
 
 router = APIRouter()
@@ -27,7 +28,15 @@ class AskIn(BaseModel):
 
 
 @router.post("/ask")
-async def api_ask(payload: AskIn, session: AsyncSession = Depends(get_session)) -> Dict[str, Any]:
+async def api_ask(payload: AskIn, request: Request, session: AsyncSession = Depends(get_session)) -> Dict[str, Any]:
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, wait = ask_limiter.check(client_ip)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many requests. Please wait {wait}s.",
+            headers={"Retry-After": str(wait)},
+        )
     try:
         return await run_ask(session, text=payload.text.strip(), save_prompt=payload.save_prompt)
     except ValueError as e:
