@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import logging
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
@@ -22,6 +23,8 @@ from ..services.map_service import get_node, list_map_points, map_query_point
 from ..settings import settings
 from ..rate_limit import ask_limiter
 from ..text_sanitize import sanitize_source_display
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -57,23 +60,12 @@ async def api_daily_archive(session: AsyncSession = Depends(get_session)) -> Dic
     return {"entries": entries}
 
 
-@router.get("/daily")
-async def api_daily(
-    d: Optional[str] = None,
-    session: AsyncSession = Depends(get_session),
-) -> Dict[str, Any]:
-    digest_date = editorial_today()
-    if d:
-        try:
-            digest_date = date.fromisoformat(d)
-        except Exception:
-            raise HTTPException(status_code=400, detail="Invalid date YYYY-MM-DD")
-    entry = await get_daily(session, entry_date=digest_date)
-    if not entry:
-        raise HTTPException(status_code=404, detail="No daily entry for this date")
+async def _daily_payload(session: AsyncSession, entry: DailyEntry) -> Dict[str, Any]:
     from ..models import SourceText
 
-    res = await session.execute(select(SourceText).where(SourceText.id.in_([entry.canonical_source_text_id, entry.thomas_source_text_id])))
+    res = await session.execute(
+        select(SourceText).where(SourceText.id.in_([entry.canonical_source_text_id, entry.thomas_source_text_id]))
+    )
     rows = {r.id: r for r in res.scalars().all()}
     c = rows.get(entry.canonical_source_text_id)
     t = rows.get(entry.thomas_source_text_id)
@@ -107,6 +99,36 @@ async def api_daily(
         "generation_model": entry.generation_model,
         "generation_prompt_version": entry.generation_prompt_version,
     }
+
+
+@router.get("/daily")
+async def api_daily(
+    d: Optional[str] = None,
+    session: AsyncSession = Depends(get_session),
+) -> Dict[str, Any]:
+    digest_date = editorial_today()
+    if d:
+        try:
+            digest_date = date.fromisoformat(d)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid date YYYY-MM-DD")
+    entry = await get_daily(session, entry_date=digest_date)
+    if not entry:
+        # Close the "midnight gap": create today or "tomorrow" (editorial) on first read so the new day appears
+        # as soon as someone opens Daily, without waiting only on the worker cron.
+        et = editorial_today()
+        if digest_date == et or digest_date == et + timedelta(days=1):
+            try:
+                await generate_daily_for_date(session, digest_date)
+                logger.info("api_daily: generated missing daily for %s on demand", digest_date)
+            except ValueError:
+                pass
+            except Exception as e:
+                logger.warning("api_daily: on-demand generate failed for %s: %s", digest_date, e)
+            entry = await get_daily(session, entry_date=digest_date)
+    if not entry:
+        raise HTTPException(status_code=404, detail="No daily entry for this date")
+    return await _daily_payload(session, entry)
 
 
 @router.get("/map")

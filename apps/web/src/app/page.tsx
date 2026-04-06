@@ -158,11 +158,9 @@ export default function Home() {
           {!dailyQ.isLoading && !dailyQ.isError && dailyQ.data === null && (
             <div className="space-y-3 text-muted leading-relaxed text-sm">
               <p>
-                No published daily for{" "}
-                <span className="font-mono text-ink/80">{dailyTarget}</span> yet. The server generates one after ingest
-                and when the API/worker run (OpenRouter key required). If you just passed midnight where you are, wait a
-                minute and try again, or open <strong className="text-ink font-normal">Archive</strong> for an earlier
-                day.
+                No published daily for <span className="font-mono text-ink/80">{dailyTarget}</span> yet. The first open
+                of a new day usually creates it automatically (may take ~30s). You need ingest once and a valid
+                OpenRouter key. Or open <strong className="text-ink font-normal">Archive</strong> for another day.
               </p>
               <button
                 type="button"
