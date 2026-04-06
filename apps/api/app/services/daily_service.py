@@ -4,7 +4,8 @@ import json
 import logging
 import orjson
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +22,21 @@ from ..retrieval import get_texts_by_ids, search_by_embedding
 from ..settings import settings
 
 logger = logging.getLogger(__name__)
+
+
+def editorial_today() -> date:
+    """Calendar 'today' for dailies (generation + default API lookup).
+
+    Uses ``DAILY_TIMEZONE_DEFAULT`` so Docker hosts are not stuck on naive UTC ``date.today()``
+    unless you want UTC. Invalid zone names fall back to UTC.
+    """
+    tz_name = (settings.daily_timezone_default or "UTC").strip() or "UTC"
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        logger.warning("editorial_today: invalid DAILY_TIMEZONE_DEFAULT=%r, using UTC", tz_name)
+        tz = ZoneInfo("UTC")
+    return datetime.now(tz).date()
 
 
 def _load_theme_list() -> List[str]:
@@ -74,7 +90,7 @@ async def get_daily(
     *,
     entry_date: Optional[date] = None,
 ) -> Optional[DailyEntry]:
-    entry_date = entry_date or date.today()
+    entry_date = entry_date or editorial_today()
     res = await session.execute(select(DailyEntry).where(DailyEntry.entry_date == entry_date, DailyEntry.is_published.is_(True)))
     return res.scalars().first()
 
@@ -193,7 +209,7 @@ async def generate_daily_for_date(session: AsyncSession, target_date: date, *, r
 
 async def ensure_today_daily_if_missing() -> None:
     """If there is no published daily for today, generate one. Idempotent; safe if worker runs in parallel."""
-    today = date.today()
+    today = editorial_today()
     async with AsyncSessionLocal() as session:
         if await get_daily(session, entry_date=today):
             return

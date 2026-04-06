@@ -5,7 +5,7 @@ import { useState } from "react";
 import { DailyReading } from "@/components/DailyReading";
 import { AskResult } from "@/components/AskResult";
 import { MapExplorer } from "@/components/MapExplorer";
-import { getDaily, getDailyArchive, getMap, postAsk } from "@/lib/api";
+import { getDaily, getDailyArchive, getMap, localCalendarDateIso, postAsk } from "@/lib/api";
 
 const MAX_CHARS = 4000;
 
@@ -27,9 +27,12 @@ export default function Home() {
     setTab(t);
   };
 
+  /** Local calendar day for "today" (not server UTC). */
+  const dailyTarget = dailyDate ?? localCalendarDateIso();
+
   const dailyQ = useQuery({
-    queryKey: ["daily", dailyDate ?? "today"],
-    queryFn: () => getDaily(dailyDate ?? undefined),
+    queryKey: ["daily", dailyTarget],
+    queryFn: () => getDaily(dailyTarget),
     enabled: tab === "daily",
   });
 
@@ -155,12 +158,15 @@ export default function Home() {
           {!dailyQ.isLoading && !dailyQ.isError && dailyQ.data === null && (
             <div className="space-y-3 text-muted leading-relaxed text-sm">
               <p>
-                No daily for {dailyDate ? "this date" : "today"} yet. The app creates one automatically after the API
-                and worker start (and after scripture is ingested once).
+                No published daily for{" "}
+                <span className="font-mono text-ink/80">{dailyTarget}</span> yet. The server generates one after ingest
+                and when the API/worker run (OpenRouter key required). If you just passed midnight where you are, wait a
+                minute and try again, or open <strong className="text-ink font-normal">Archive</strong> for an earlier
+                day.
               </p>
               <button
                 type="button"
-                onClick={() => queryClient.invalidateQueries({ queryKey: ["daily", dailyDate ?? "today"] })}
+                onClick={() => queryClient.invalidateQueries({ queryKey: ["daily", dailyTarget] })}
                 className="rounded border border-ink/20 px-3 py-1.5 text-xs text-ink hover:bg-white/60"
               >
                 Check again

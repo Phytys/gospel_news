@@ -59,7 +59,16 @@ export type DailyEntry = {
   generation_prompt_version?: string;
 };
 
-/** 404 → no row for that date (not an error). */
+/** User's local calendar date as YYYY-MM-DD (for "today" daily — avoids server UTC vs your midnight). */
+export function localCalendarDateIso(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** 404 → no row for that date (not an error). Pass explicit YYYY-MM-DD for "today" (see localCalendarDateIso). */
 export async function getDaily(date?: string): Promise<DailyEntry | null> {
   const q = date ? `?d=${encodeURIComponent(date)}` : "";
   const r = await fetch(apiUrl(`/api/v1/daily${q}`), { cache: "no-store" });

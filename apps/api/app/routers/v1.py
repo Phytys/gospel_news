@@ -12,7 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_session
 from ..models import DailyEntry, UserSessionAsk
 from ..services.ask_service import run_ask
-from ..services.daily_service import generate_daily_for_date, get_daily, list_published_daily_summaries
+from ..services.daily_service import (
+    editorial_today,
+    generate_daily_for_date,
+    get_daily,
+    list_published_daily_summaries,
+)
 from ..services.map_service import get_node, list_map_points, map_query_point
 from ..settings import settings
 from ..rate_limit import ask_limiter
@@ -57,7 +62,7 @@ async def api_daily(
     d: Optional[str] = None,
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, Any]:
-    digest_date = date.today()
+    digest_date = editorial_today()
     if d:
         try:
             digest_date = date.fromisoformat(d)
@@ -174,7 +179,7 @@ async def admin_gen_daily(
     session: AsyncSession = Depends(get_session),
 ) -> Dict[str, Any]:
     _admin(x_admin_token)
-    target = date.today()
+    target = editorial_today()
     if d:
         try:
             target = date.fromisoformat(d)

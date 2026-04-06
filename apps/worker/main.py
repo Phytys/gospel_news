@@ -3,21 +3,20 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app.db import AsyncSessionLocal, init_db_schema
-from app.services.daily_service import generate_daily_for_date
+from app.services.daily_service import editorial_today, generate_daily_for_date
 from app.settings import settings
 
 
 async def run_daily() -> None:
     await init_db_schema()
     async with AsyncSessionLocal() as session:
-        today = date.today()
+        today = editorial_today()
         try:
             await generate_daily_for_date(session, today)
             print(f"[worker] Daily generated for {today}")
